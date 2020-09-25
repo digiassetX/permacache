@@ -118,17 +118,66 @@ module.exports = {
         //add some files and make sure they are in long term
         let hash0400=await cache.put(file0400,'a',true);
         let hash1200=await cache.put(file1200,'b',true);
-        await sleep(10);
         test.equal(Buffer.compare(fs.readFileSync("./tests/temp/caches/"+hash0400),file0400),0);
         test.equal(Buffer.compare(fs.readFileSync("./tests/temp/caches/"+hash1200),file1200),0);
         test.equal(fs.readFileSync("./tests/temp/paths/a",).toString('hex'),hash0400);
         test.equal(fs.readFileSync("./tests/temp/paths/b",).toString('hex'),hash1200);
+
+        //destroy the RAM cache and see if still works from file system
+        cache=false;
+        cache=new Cache({
+            fileLimit:   1000,
+            totalLimit:  5000,
+            longterm:   "tests/temp",
+            pathLimit:   5,
+            debug:      false
+        });
+        test.equal(Buffer.compare(await cache.getByPath("a"),file0400),0);
+        test.equal(Buffer.compare(await cache.getByHash(hash1200),file1200),0);
+
 
         //clean up after test
         fs.unlinkSync("./tests/temp/caches/"+hash0400);
         fs.unlinkSync("./tests/temp/caches/"+hash1200);
         fs.unlinkSync("./tests/temp/paths/a");
         fs.unlinkSync("./tests/temp/paths/b");
+
+        test.done();
+    },
+    'Test S3': async function(test) {
+        const longterm={
+                accessKeyId: "REDACTED",
+                secretAccessKey: "REDACTED",
+                bucket: "REDACTED"
+        }
+        if (longterm.accessKeyId==="REDACTED") return;  //can't do test if keys are redacted.
+        let cache=new Cache({
+            fileLimit:   1000,
+            totalLimit:  5000,
+            longterm:    longterm,
+            pathLimit:   5,
+            debug:      false
+        });
+
+        //add some files and make sure they are in long term
+        let hash0400=await cache.put(file0400,'a',true);
+        let hash1200=await cache.put(file1200,'b',true);
+
+        //destroy the RAM cache and see if still works from s3 bucket
+        cache=false;
+        cache=new Cache({
+            fileLimit:   1000,
+            totalLimit:  5000,
+            longterm:    longterm,
+            pathLimit:   5,
+            debug:      false
+        });
+        test.equal(Buffer.compare(await cache.getByPath("a"),file0400),0);
+        test.equal(Buffer.compare(await cache.getByHash(hash1200),file1200),0);
+
+        /**
+         * sorry you need to log in to aws console to delete test files since we did not give delete permissions to permacache
+         */
 
         test.done();
     }

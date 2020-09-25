@@ -395,7 +395,7 @@ class Cache {
         //check long term
         if ((hash===undefined)&&(this._longterm!==false)) {
             try {
-                hash=this._longterm.readPath(path);                                                     //gets the hash from long term if set
+                hash=await this._longterm.readPath(path);                                                     //gets the hash from long term if set
                 this._storePathInRAM(path,hash);                                                        //restore in RAM since not there anymore
             } catch (_) {}
         }
