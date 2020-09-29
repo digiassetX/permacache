@@ -313,15 +313,16 @@ class Cache {
     /**
      * If there is space it adds the data to the cache.
      * Either way it returns the hash
+     * Multiple paths can be given to allow lookup from multiple names.  data is still only stored once
      * @param {Buffer}  data
-     * @param {String}  path
+     * @param {String|[String]}  paths
      * @param {boolean} waitForLongTermIfPutInRAM
      * @return {Promise<string>}
      */
-    async put(data,path="",waitForLongTermIfPutInRAM=false) {
+    async put(data,paths=[],waitForLongTermIfPutInRAM=false) {
         return new Promise((resolve, reject) => {
             //quick error check.  If not long term and size is to big throw error
-            if ((this._longterm===false)&&(data.length>this._fileLimit)) return reject(new Error(`File to large to fit in cache.\nPath: ${path}\ndata: ${data.toString('hex')}`));
+            if ((this._longterm===false)&&(data.length>this._fileLimit)) return reject(new Error(`File to large to fit in cache.\nPath: ${paths}\ndata: ${data.toString('hex')}`));
 
             //calculate the has of the data
             let hash=crypto.createHash('sha256').update(data).digest('hex');                            //get hash
@@ -331,10 +332,12 @@ class Cache {
             //if waitForLongTermIfPutInRAM is false then will run synchronously is it can fit in RAM and will not wait for long term calls
             let waiting=[];
 
-            //store path if provided
-            if ((path !== "") && ((this._paths[path] === undefined) || (this._paths[path][1] !== hash))) {    //if path is set and path not already stored
-                this._storePathInRAM(path,hash);                                                        //store the path in RAM
-                if (this._longterm !== false) waiting.push(this._longterm.writePath(path, hash));       //if long term is enabled store path in it
+            if (typeof paths==="string") paths=[paths];                                                 //make sure path is an array
+            for (let path of paths) {
+                if ((this._paths[path] === undefined) || (this._paths[path][1] !== hash)) {             //if path is set and path data not already stored
+                    this._storePathInRAM(path, hash);                                                   //store the path in RAM
+                    if (this._longterm !== false) waiting.push(this._longterm.writePath(path, hash));   //if long term is enabled store path in it
+                }
             }
 
             //store in long term if set

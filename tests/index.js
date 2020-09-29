@@ -14,6 +14,7 @@ const file0500=makeRandom(500);
 const file0900=makeRandom(900);
 const file1200=makeRandom(1200);
 const file0400=makeRandom(400);
+const file0300=makeRandom(300);
 const fillFiles=[makeRandom(400),makeRandom(400),makeRandom(400),makeRandom(400),makeRandom(500),makeRandom(500),makeRandom(500),makeRandom(500)];
 
 //make copy of a buffer so we know it checks buffers are same value and not necessarily same buffer
@@ -101,6 +102,15 @@ module.exports = {
         //shrink ram allocation space and make sure new size total is less then that
         cache.totalLimit=2500;
         test.equal(cache.size,2400);
+
+        //store file under multiple paths
+        cache.totalLimit=5000;
+        await cache.put(file0300,["xa","xb","xc","xd/a"]);
+        test.equal(cache.size,2700);
+        test.equal(Buffer.compare(await cache.getByPath("xa"),file0300),0);
+        test.equal(Buffer.compare(await cache.getByPath("xb"),file0300),0);
+        test.equal(Buffer.compare(await cache.getByPath("xc"),file0300),0);
+        test.equal(Buffer.compare(await cache.getByPath("xd/a"),file0300),0);
 
 
         test.done();
