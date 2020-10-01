@@ -113,20 +113,26 @@ class Cache {
                 });
                 const bucket=this._longterm.bucket;
                 this._longterm={
-                    readPath:   async (path)=>{
+                    readPath:   async (path)=>new Promise(async(resolve,reject)=>{
                         let stream = (await s3.getObject({
                             Bucket: bucket,
                             Key:    "paths/"+path
                         })).createReadStream();
-                        return (await streamToBuffer(stream)).toString('hex');
-                    },
-                    readCache:  async (hash)=>{
+                        stream.on('error',(error)=>{
+                           return reject(new Error("Path not Found"));
+                        });
+                        resolve((await streamToBuffer(stream)).toString('hex'));
+                    }),
+                    readCache:  async (hash)=>new Promise(async(resolve,reject)=>{
                         let stream = (await s3.getObject({
                             Bucket: bucket,
                             Key:    "caches/"+hash
                         })).createReadStream();
-                        return streamToBuffer(stream);
-                    },
+                        stream.on('error',(error)=>{
+                            return reject(new Error("Cache not Found"));
+                        });
+                        resolve(streamToBuffer(stream));
+                    }),
                     writePath:  async (path,cacheHash)=>{
                         const hash=Buffer.from(cacheHash,'hex');
                         return new Promise((resolve, reject) => {

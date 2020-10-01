@@ -65,7 +65,7 @@ module.exports = {
         //try to add a file that is to big for the buffer and make sure error is thrown since no longterm
         try {
             await cache.put(file1200,"d");
-            test.equal("this line should never run",67);
+            test.equal("this line should never run",68);
         } catch (e) {
             test.equal("error was called because file to large","error was called because file to large");
         }
@@ -84,9 +84,9 @@ module.exports = {
         await sleep(5);
         try {
             console.log(await cache.getByPath("b"));
-            test.equal("this line should never run",86);
+            test.equal("this line should never run",87);
         } catch (e) {
-            test.equal("error was called because file nolonger in cache","error was called because file nolonger in cache");
+            test.equal("error was called because file no longer in cache","error was called because file no longer in cache");
         }
 
         //shrink the file limit then add a file less then old limit
@@ -94,7 +94,7 @@ module.exports = {
         cache.fileLimit=600;
         try {
             console.log(await cache.put(file0900));
-            test.equal("this line should never run",96);
+            test.equal("this line should never run",97);
         } catch (e) {
             test.equal("error was called because file to large","error was called because file to large");
         }
@@ -145,6 +145,13 @@ module.exports = {
         test.equal(Buffer.compare(await cache.getByPath("a"),file0400),0);
         test.equal(Buffer.compare(await cache.getByHash(hash1200),file1200),0);
 
+        //try to access information that does not exist
+        try {
+            await cache.getByPath("no_file");
+            test.equal("this line should never run",151);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
 
         //clean up after test
         fs.unlinkSync("./tests/temp/caches/"+hash0400);
@@ -156,9 +163,9 @@ module.exports = {
     },
     'Test S3': async function(test) {
         const longterm={
-                accessKeyId: "REDACTED",
-                secretAccessKey: "REDACTED",
-                bucket: "REDACTED"
+            accessKeyId: 'REDACTED',
+            secretAccessKey: 'REDACTED',
+            bucket: 'REDACTED'
         }
         if (longterm.accessKeyId==="REDACTED") return;  //can't do test if keys are redacted.
         let cache=new Cache({
@@ -184,6 +191,15 @@ module.exports = {
         });
         test.equal(Buffer.compare(await cache.getByPath("a"),file0400),0);
         test.equal(Buffer.compare(await cache.getByHash(hash1200),file1200),0);
+
+        //try to access information that does not exist
+        try {
+            await cache.getByPath("no_file");
+            test.equal("this line should never run",198);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
+
 
         /**
          * sorry you need to log in to aws console to delete test files since we did not give delete permissions to permacache
