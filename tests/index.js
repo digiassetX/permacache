@@ -3,6 +3,7 @@ const Cache = require('../index');
 const sleep=require('sleep-promise');
 const isHex=/^[0-9a-f]+$/;  //only lowercase will be considered valid
 const fs=require('fs');
+const S3Buffer=require('s3buffer');
 
 //generate some random files
 const makeRandom=(length)=>{
@@ -140,7 +141,8 @@ module.exports = {
             totalLimit:  5000,
             longterm:   "tests/temp",
             pathLimit:   5,
-            debug:      false
+            debug:      false,
+            clearCheckInterval: 10000
         });
         test.equal(Buffer.compare(await cache.getByPath("a"),file0400),0);
         test.equal(Buffer.compare(await cache.getByHash(hash1200),file1200),0);
@@ -148,16 +150,20 @@ module.exports = {
         //try to access information that does not exist
         try {
             await cache.getByPath("no_file");
-            test.equal("this line should never run",151);
+            test.equal("this line should never run",152);
         } catch (e) {
             test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
         }
 
-        //clean up after test
-        fs.unlinkSync("./tests/temp/caches/"+hash0400);
-        fs.unlinkSync("./tests/temp/caches/"+hash1200);
-        fs.unlinkSync("./tests/temp/paths/a");
-        fs.unlinkSync("./tests/temp/paths/b");
+        //clear the cache by creating a clear file
+        fs.writeFileSync("./tests/temp/clear","");
+        await sleep(30000); //3 times the check frequency so should have run
+        try {
+            await cache.getByPath("a");
+            test.equal("this line should never run",162);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
 
         test.done();
     },
@@ -187,7 +193,8 @@ module.exports = {
             totalLimit:  5000,
             longterm:    longterm,
             pathLimit:   5,
-            debug:      false
+            debug:      false,
+            clearCheckInterval: 30000
         });
         test.equal(Buffer.compare(await cache.getByPath("a"),file0400),0);
         test.equal(Buffer.compare(await cache.getByHash(hash1200),file1200),0);
@@ -195,15 +202,21 @@ module.exports = {
         //try to access information that does not exist
         try {
             await cache.getByPath("no_file");
-            test.equal("this line should never run",198);
+            test.equal("this line should never run",203);
         } catch (e) {
             test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
         }
 
-
-        /**
-         * sorry you need to log in to aws console to delete test files since we did not give delete permissions to permacache
-         */
+        //clear the cache by creating a clear file
+        let s3buffer=new S3Buffer(longterm);
+        await s3buffer.write('clear',new Buffer.alloc(1));
+        await sleep(90000); //3 times the check frequency so should have run
+        try {
+            await cache.getByPath("a");
+            test.equal("this line should never run",162);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
 
         test.done();
     }

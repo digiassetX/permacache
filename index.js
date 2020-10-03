@@ -1,20 +1,15 @@
-const AWS=require('aws-sdk');
+const S3Buffer=require('s3buffer');
 const fs = require('fs');
 const crypto=require('crypto');
 const makeYellow="\x1b[33m";
 const makeNormal="\x1b[0m";
+const deltreeFs = require("deltree");
+const sleep=require('sleep-promise');
 
-/**
- * Converts a stream to a Buffer
- * @param stream
- * @return {Promise<Buffer>}
- */
-const streamToBuffer=async (stream)=>{
-    return new Promise(resolve => {
-        const chunks = [];
-        stream.on("data", (chunk) => chunks.push(chunk));
-        stream.on("end", () => resolve(Buffer.concat(chunks)));
-    });
+async function checkFileExists(file) {
+    return fs.promises.access(file, fs.constants.F_OK)
+        .then(() => true)
+        .catch(() => false)
 }
 
 class Cache {
@@ -27,17 +22,21 @@ class Cache {
      *      pathLimit(max number of path entries to keep in RAM):100k
      *      debug:                                              flase
      *          if true will write to console every time data is removed or replaced from RAM
+     *      clearCheckInterval:                                 undefined
+     *          number of ms between checking if clear file exists.
+     *          only applicable if longterm is defined
      * @param {{
      *     fileLimit:   int,
      *     totalLimit:  int,
      *     longterm:    string|{accessKeyId: string,secretAccessKey: string,bucket: string},
      *     pathLimit:   int,
-     *     debug:       boolean
+     *     debug:       boolean,
+     *     clearCheckInterval: int
      * }}options
      */
     constructor(options) {
         //configure options
-        let {fileLimit,totalLimit,longterm,pathLimit,debug}=options;
+        let {fileLimit,totalLimit,longterm,pathLimit,debug,clearCheckInterval}=options;
         this._fileLimit=fileLimit||100000;
         this._totalLimit=totalLimit||500000000;
         this._longterm=longterm||false;
@@ -77,7 +76,8 @@ class Cache {
                  *      readCache: (function(hash: string): Promise<Buffer>),
                  *      writeCache: (function(hash: string, cacheData: Buffer): Promise<void>),
                  *      readPath: (function(path: string): Promise<string>),
-                 *      writePath: (function(path: string, cacheHash: string): Promise<void>)
+                 *      writePath: (function(path: string, cacheHash: string): Promise<void>),
+                 *      clear: (function(check: boolean): Promise<boolean>)
                  *   } |boolean
                  * }
                  * @private
@@ -95,8 +95,22 @@ class Cache {
                     },
                     writeCache: async (hash,cacheData)=>{
                         await fs.promises.writeFile(masterPath+"/caches/"+hash,cacheData);
+                    },
+                    clear: async (check=false)=>{
+                        if (check&&!(await checkFileExists(masterPath+'/clear'))) return false; //clear missing and needed so bail
+                        deltreeFs(masterPath);
+                        fs.mkdirSync(masterPath);
+                        fs.mkdirSync(masterPath+"/caches");
+                        fs.mkdirSync(masterPath+"/paths");
+                        this._pathIndex=0;
+                        this._current=0;
+                        this._caches={};    //[time,data]
+                        this._paths={};     //[index,name]
+                        return true;
                     }
                 }
+
+
 
 
 
@@ -107,62 +121,20 @@ class Cache {
                 //aws s3 bucket
                 //should be in form {accessKeyId: string,secretAccessKey: string,bucket: string}
 
-                const s3 = new AWS.S3({
-                    accessKeyId:        this._longterm.accessKeyId,
-                    secretAccessKey:    this._longterm.secretAccessKey
-                });
-                const bucket=this._longterm.bucket;
+                const s3buffer=new S3Buffer(this._longterm);
                 this._longterm={
-                    readPath:   async (path)=>new Promise(async(resolve,reject)=>{
-                        let stream = (await s3.getObject({
-                            Bucket: bucket,
-                            Key:    "paths/"+path
-                        })).createReadStream();
-                        stream.on('error',(error)=>{
-                           return reject(new Error("Path not Found"));
-                        });
-                        resolve((await streamToBuffer(stream)).toString('hex'));
-                    }),
-                    readCache:  async (hash)=>new Promise(async(resolve,reject)=>{
-                        let stream = (await s3.getObject({
-                            Bucket: bucket,
-                            Key:    "caches/"+hash
-                        })).createReadStream();
-                        stream.on('error',(error)=>{
-                            return reject(new Error("Cache not Found"));
-                        });
-                        resolve(streamToBuffer(stream));
-                    }),
-                    writePath:  async (path,cacheHash)=>{
-                        const hash=Buffer.from(cacheHash,'hex');
-                        return new Promise((resolve, reject) => {
-                            s3.upload({
-                                Bucket: bucket,
-                                Key:    "paths/"+path,
-                                Body:   hash
-                            }, function (s3Err) {
-                                if (s3Err) {
-                                    reject();
-                                } else {
-                                    resolve();
-                                }
-                            });
-                        });
-                    },
-                    writeCache: async (hash,cacheData)=>{
-                        return new Promise((resolve, reject) => {
-                            s3.upload({
-                                Bucket: bucket,
-                                Key:    "caches/"+hash,
-                                Body:   cacheData
-                            }, function (s3Err) {
-                                if (s3Err) {
-                                    reject();
-                                } else {
-                                    resolve();
-                                }
-                            });
-                        });
+                    readPath:   async (path)=>(await s3buffer.read("paths/"+path)).toString('hex'),
+                    readCache:  async (hash)=>s3buffer.read("caches/"+hash),
+                    writePath:  async (path,cacheHash)=>s3buffer.write("paths/"+path,Buffer.from(cacheHash,'hex')),
+                    writeCache: async (hash,cacheData)=>s3buffer.write("caches/"+hash,cacheData),
+                    clear: async (check=false)=>{
+                        if (check&&!(await s3buffer.exists("clear"))) return false; //clear missing and needed so bail
+                        await s3buffer.clear();
+                        this._pathIndex=0;
+                        this._current=0;
+                        this._caches={};    //[time,data]
+                        this._paths={};     //[index,name]
+                        return true;
                     }
                 }
 
@@ -170,6 +142,17 @@ class Cache {
 
             }
 
+        }
+
+        //clear checking
+        if (clearCheckInterval!==undefined) {
+            (async()=> {
+                // noinspection InfiniteLoopJS
+                while (true) {
+                    await this._longterm.clear(true);
+                    await sleep(clearCheckInterval);
+                }
+            })();
         }
     }
 

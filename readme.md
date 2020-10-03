@@ -51,6 +51,7 @@ Amazon AWS s3 is a very cost effective way to create really large permanent cach
     4. CLick on "+ Add inline policy"
     5. Select Service S3
     6. Select Actions "Read: GetObject" and "Write: PutObject"
+    7. If want to use the clear option select actions "Access level: ListBucket" and "Write: DeleteObject"
     8. When Resource, Specific is select click "Add ARN" 
     9. Enter the bucket you wish to use and put * for the Object name then press Add
     10. Press blue "Review Policy" button
