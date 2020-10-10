@@ -116,6 +116,14 @@ module.exports = {
 
         test.done();
     },
+
+
+
+
+
+
+
+
     'Test File System': async function(test) {
         //create cache
         let cache=new Cache({
@@ -165,8 +173,24 @@ module.exports = {
             test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
         }
 
+        //check clear section
+        test.equal(cache.size,0);
+        await cache.put(file0400,'a',true);
+        await cache.put(file0500,'b',true);
+        test.equal(cache.size,900);
+        await cache.clear();
+        test.equal(cache.size,0);
+
         test.done();
     },
+
+
+
+
+
+
+
+
     'Test S3': async function(test) {
         const longterm={
             accessKeyId: 'REDACTED',

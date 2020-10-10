@@ -102,10 +102,6 @@ class Cache {
                         fs.mkdirSync(masterPath);
                         fs.mkdirSync(masterPath+"/caches");
                         fs.mkdirSync(masterPath+"/paths");
-                        this._pathIndex=0;
-                        this._current=0;
-                        this._caches={};    //[time,data]
-                        this._paths={};     //[index,name]
                         return true;
                     }
                 }
@@ -130,10 +126,6 @@ class Cache {
                     clear: async (check=false)=>{
                         if (check&&!(await s3buffer.exists("clear"))) return false; //clear missing and needed so bail
                         await s3buffer.clear();
-                        this._pathIndex=0;
-                        this._current=0;
-                        this._caches={};    //[time,data]
-                        this._paths={};     //[index,name]
                         return true;
                     }
                 }
@@ -142,17 +134,18 @@ class Cache {
 
             }
 
-        }
 
-        //clear checking
-        if (clearCheckInterval!==undefined) {
-            (async()=> {
-                // noinspection InfiniteLoopJS
-                while (true) {
-                    await this._longterm.clear(true);
-                    await sleep(clearCheckInterval);
-                }
-            })();
+
+            //clear checking
+            if (clearCheckInterval!==undefined) {
+                (async()=> {
+                    // noinspection InfiniteLoopJS
+                    while (true) {
+                        await this._clear(true);
+                        await sleep(clearCheckInterval);
+                    }
+                })();
+            }
         }
     }
 
@@ -399,5 +392,27 @@ class Cache {
         return this.getByHash(hash);
     }
 
+    /**
+     * Clears the cache
+     * @param {boolean} check
+     * @return {Promise<void>}
+     */
+    async _clear(check=false) {
+        if ((this._longterm===false)||(await this._longterm.clear(check))) {    //this._longterm===false only ever when check is false so this short cut is valid
+            this._pathIndex = 0;
+            this._current = 0;
+            this._caches = {};    //[time,data]
+            this._paths = {};     //[index,name]
+        }
+    }
+
+
+    /**
+     * Clears the cache
+     * @return {Promise<void>}
+     */
+    async clear() {
+        await this._clear();
+    }
 }
 module.exports=Cache;
