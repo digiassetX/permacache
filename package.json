@@ -1,6 +1,6 @@
 {
   "name": "permacache",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "Creates a fast access cache in RAM and an optional permanent cache in AWS S3 bucket or the file system",
   "main": "index.js",
   "scripts": {

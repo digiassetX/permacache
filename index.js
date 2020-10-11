@@ -34,10 +34,10 @@ class Cache {
      *     clearCheckInterval: int
      * }}options
      */
-    constructor(options) {
+    constructor(options={}) {
         //configure options
         let {fileLimit,totalLimit,longterm,pathLimit,debug,clearCheckInterval}=options;
-        this._fileLimit=fileLimit||100000;
+        this._fileLimit=fileLimit||100000;      //0 means no limit
         this._totalLimit=totalLimit||500000000;
         this._longterm=longterm||false;
         this._pathLimit=pathLimit||100000;
@@ -223,7 +223,7 @@ class Cache {
         this._paths[path] = [this._pathIndex++, hash];                                                  //store path and its index
 
         //remove earliest path if over limit
-        if (this._pathIndex > this._pathLimit) {                                                        //check if we have exceeded the path cache size
+        if ((this._pathIndex > this._pathLimit)&&(this._pathLimit!==0)) {                                                        //check if we have exceeded the path cache size
             let removeIndex = this._pathIndex - this._pathLimit - 1;                                    //calculate the index we want to remove(lowest index)
             for (let pathIndex in this._paths) {                                                        //go through all paths
                 if (this._paths[pathIndex][0] === removeIndex) {                                        //check if its the path we want to remove
@@ -242,7 +242,7 @@ class Cache {
      * @private
      */
     _freeSpaceInRAM(size=0,now=false) {
-        if (this._current + size > this._totalLimit) {
+        if ((this._totalLimit!==0)&&(this._current + size > this._totalLimit)) {
             now=now||(new Date()).getTime();                                                            //make sure now is initialised
             let sorted = [];                                                                            //each entry in array is [score,hash]
             for (let hash in this._caches)
@@ -278,7 +278,7 @@ class Cache {
 
         //stop processing if over the file size limit for RAM
         let size=data.length;                                                                           //get file size
-        if (size > this._fileLimit) return false;                                                       //to big so return that it is not in RAM
+        if ((size > this._fileLimit)&&(this._fileLimit!==0)) return false;                                                       //to big so return that it is not in RAM
 
         //free up space for file if necessary
         this._freeSpaceInRAM(size,now);
@@ -304,7 +304,7 @@ class Cache {
     async put(data,paths=[],waitForLongTermIfPutInRAM=false) {
         return new Promise((resolve, reject) => {
             //quick error check.  If not long term and size is to big throw error
-            if ((this._longterm===false)&&(data.length>this._fileLimit)) return reject(new Error(`File to large to fit in cache.\nPath: ${paths}\ndata: ${data.toString('hex')}`));
+            if ((this._longterm===false)&&(data.length>this._fileLimit)&&(this._fileLimit!==0)) return reject(new Error(`File to large to fit in cache.\nPath: ${paths}\ndata: ${data.toString('hex')}`));
 
             //calculate the has of the data
             let hash=crypto.createHash('sha256').update(data).digest('hex');                            //get hash

@@ -24,6 +24,17 @@ const copy0900=Buffer.from(file0900);
 const copyLastFillFile=Buffer.from(fillFiles[fillFiles.length-1]);
 
 module.exports = {
+    'Test unlimited': async function(test) {
+        //create cache
+        let cache=new Cache({
+            fileLimit: 0,
+            totalLimit:0,
+            pathLimit: 0
+        });
+        await cache.put(file0500,"a");
+        test.equal(cache.size,500);
+        test.done();
+    },
     'Test No Longterm': async function(test) {
         //create cache
         let cache=new Cache({
