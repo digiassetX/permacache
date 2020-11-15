@@ -1,6 +1,6 @@
 {
   "name": "permacache",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Creates a fast access cache in RAM and an optional permanent cache in AWS S3 bucket or the file system",
   "main": "index.js",
   "scripts": {
@@ -10,9 +10,9 @@
   "author": "Matthew Cornelisse",
   "license": "MIT",
   "dependencies": {
-    "aws-sdk": "^2.759.0",
+    "aws-sdk": "^2.792.0",
     "deltree": "^1.2.2",
-    "s3buffer": "^1.0.1",
+    "s3buffer": "^1.0.2",
     "sleep-promise": "^8.0.1"
   },
   "devDependencies": {

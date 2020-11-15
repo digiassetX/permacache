@@ -77,6 +77,8 @@ class Cache {
                  *      writeCache: (function(hash: string, cacheData: Buffer): Promise<void>),
                  *      readPath: (function(path: string): Promise<string>),
                  *      writePath: (function(path: string, cacheHash: string): Promise<void>),
+                 *      deletePath: (function(path: string): Promise<void>),
+                 *      deletePathStart (function(path: string): Promise<void>):
                  *      clear: (function(check: boolean): Promise<boolean>)
                  *   } |boolean
                  * }
@@ -84,17 +86,31 @@ class Cache {
                  */
                 this._longterm={
                     readPath:   async (path)=>{
+                        path=path.replace(/([\/\\])/g,"_");
                         return (await fs.promises.readFile(masterPath+"/paths/"+path)).toString('hex');
                     },
                     readCache:  async (hash)=>{
                         return fs.promises.readFile(masterPath+"/caches/"+hash);
                     },
                     writePath:  async (path,cacheHash)=>{
+                        path=path.replace(/([\/\\])/g,"_");
                         const hash=Buffer.from(cacheHash,'hex');
                         await fs.promises.writeFile(masterPath+"/paths/"+path,hash);
                     },
                     writeCache: async (hash,cacheData)=>{
                         await fs.promises.writeFile(masterPath+"/caches/"+hash,cacheData);
+                    },
+                    deletePath: async (path)=>{
+                        path=path.replace(/([\/\\])/g,"_");
+                        await fs.promises.unlink(masterPath+"/paths/"+path);
+                    },
+                    deletePathStart: async (path)=>{
+                        path=path.replace(/([\/\\])/g,"_");
+                        let filenames=await fs.promises.readdir(masterPath+"/paths/");
+                        for (let filename of filenames) {
+                            if (filename.startsWith(path))
+                                await fs.promises.unlink(masterPath+"/paths/"+filename);
+                        }
                     },
                     clear: async (check=false)=>{
                         if (check&&!(await checkFileExists(masterPath+'/clear'))) return false; //clear missing and needed so bail
@@ -123,6 +139,8 @@ class Cache {
                     readCache:  async (hash)=>s3buffer.read("caches/"+hash),
                     writePath:  async (path,cacheHash)=>s3buffer.write("paths/"+path,Buffer.from(cacheHash,'hex')),
                     writeCache: async (hash,cacheData)=>s3buffer.write("caches/"+hash,cacheData),
+                    deletePath: async (path)=>s3buffer.delete("paths/"+path),
+                    deletePathStart: async (path)=>s3buffer.clear("paths/"+path),
                     clear: async (check=false)=>{
                         if (check&&!(await s3buffer.exists("clear"))) return false; //clear missing and needed so bail
                         await s3buffer.clear();
@@ -391,6 +409,51 @@ class Cache {
         //get the requested data
         return this.getByHash(hash);
     }
+
+    /**
+     * Delete a path from the cache
+     * if beginningOnly is true then deletes all paths that start with path
+     * @param {string}  path
+     * @return {Promise<void>}
+     */
+    async deleteByPath(path) {
+        //delete local cache
+        let pathsCopy=JSON.parse(JSON.stringify(this._paths));
+        this._paths={};
+        this._pathIndex=0;
+        for (let index in pathsCopy) {
+            if (index!==path) {
+                // noinspection JSUnfilteredForInLoop
+                this._paths[index]=[this._pathIndex,pathsCopy[index][1]];
+                this._pathIndex++;
+            }
+        }
+
+        //delete from long term cache
+        if (this._longterm===false) return;
+        await this._longterm.deletePath(path);
+    }
+
+
+    async deleteByPathStart(path) {
+        //delete local cache
+        let pathsCopy=JSON.parse(JSON.stringify(this._paths));
+        this._paths={};
+        this._pathIndex=0;
+        for (let index in pathsCopy) {
+            // noinspection JSUnfilteredForInLoop
+            if (!index.startsWith(path)) {
+                // noinspection JSUnfilteredForInLoop
+                this._paths[index]=[this._pathIndex,pathsCopy[index][1]];
+                this._pathIndex++;
+            }
+        }
+
+        //delete from long term cache
+        if (this._longterm===false) return;
+        await this._longterm.deletePathStart(path);
+    }
+
 
     /**
      * Clears the cache

@@ -77,7 +77,7 @@ module.exports = {
         //try to add a file that is to big for the buffer and make sure error is thrown since no longterm
         try {
             await cache.put(file1200,"d");
-            test.equal("this line should never run",68);
+            test.equal("this line should never run",80);
         } catch (e) {
             test.equal("error was called because file to large","error was called because file to large");
         }
@@ -96,7 +96,7 @@ module.exports = {
         await sleep(5);
         try {
             console.log(await cache.getByPath("b"));
-            test.equal("this line should never run",87);
+            test.equal("this line should never run",99);
         } catch (e) {
             test.equal("error was called because file no longer in cache","error was called because file no longer in cache");
         }
@@ -106,7 +106,7 @@ module.exports = {
         cache.fileLimit=600;
         try {
             console.log(await cache.put(file0900));
-            test.equal("this line should never run",97);
+            test.equal("this line should never run",109);
         } catch (e) {
             test.equal("error was called because file to large","error was called because file to large");
         }
@@ -146,12 +146,40 @@ module.exports = {
         });
 
         //add some files and make sure they are in long term
-        let hash0400=await cache.put(file0400,'a',true);
+        let hash0400=await cache.put(file0400,['a','test/56','test/59','test/5','test/4'],true);
         let hash1200=await cache.put(file1200,'b',true);
         test.equal(Buffer.compare(fs.readFileSync("./tests/temp/caches/"+hash0400),file0400),0);
         test.equal(Buffer.compare(fs.readFileSync("./tests/temp/caches/"+hash1200),file1200),0);
-        test.equal(fs.readFileSync("./tests/temp/paths/a",).toString('hex'),hash0400);
-        test.equal(fs.readFileSync("./tests/temp/paths/b",).toString('hex'),hash1200);
+        test.equal(fs.readFileSync("./tests/temp/paths/a").toString('hex'),hash0400);
+        test.equal(fs.readFileSync("./tests/temp/paths/test_56").toString('hex'),hash0400);
+        test.equal(fs.readFileSync("./tests/temp/paths/test_59").toString('hex'),hash0400);
+        test.equal(fs.readFileSync("./tests/temp/paths/test_5").toString('hex'),hash0400);
+        test.equal(fs.readFileSync("./tests/temp/paths/test_4").toString('hex'),hash0400);
+        test.equal(fs.readFileSync("./tests/temp/paths/b").toString('hex'),hash1200);
+
+        //try deleting files starting with test/5
+        await cache.deleteByPath("test/59");
+        try {
+            await cache.getByPath("test/59");
+            test.equal("this line should never run",164);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
+        test.equal(fs.existsSync("./tests/temp/paths/test_59"),false);
+        test.equal(fs.existsSync("./tests/temp/paths/test_56"),true);
+
+        //try deleting all files starting with test/5
+        await cache.deleteByPathStart("test/5");
+        test.equal(fs.existsSync("./tests/temp/paths/test_4"),true);
+        test.equal(fs.existsSync("./tests/temp/paths/test_56"),false);
+        try {
+            await cache.getByPath("test/56");
+            test.equal("this line should never run",177);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
+        test.equal(fs.existsSync("./tests/temp/paths/test_59"),false);
+        test.equal(fs.existsSync("./tests/temp/paths/test_5"),false);
 
         //destroy the RAM cache and see if still works from file system
         cache=false;
@@ -169,7 +197,7 @@ module.exports = {
         //try to access information that does not exist
         try {
             await cache.getByPath("no_file");
-            test.equal("this line should never run",152);
+            test.equal("this line should never run",200);
         } catch (e) {
             test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
         }
@@ -179,7 +207,7 @@ module.exports = {
         await sleep(30000); //3 times the check frequency so should have run
         try {
             await cache.getByPath("a");
-            test.equal("this line should never run",162);
+            test.equal("this line should never run",210);
         } catch (e) {
             test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
         }
@@ -204,9 +232,9 @@ module.exports = {
 
     'Test S3': async function(test) {
         const longterm={
-            accessKeyId: 'REDACTED',
+            accessKeyId:     'REDACTED',
             secretAccessKey: 'REDACTED',
-            bucket: 'REDACTED'
+            bucket:          'REDACTED'
         }
         if (longterm.accessKeyId==="REDACTED") return;  //can't do test if keys are redacted.
         let cache=new Cache({
@@ -218,8 +246,34 @@ module.exports = {
         });
 
         //add some files and make sure they are in long term
-        let hash0400=await cache.put(file0400,'a',true);
+        let hash0400=await cache.put(file0400,['a','test/56','test/59','test/5','test/4'],true);
         let hash1200=await cache.put(file1200,'b',true);
+        test.equal(Buffer.compare(await cache.getByPath("a"),file0400),0);
+        test.equal(Buffer.compare(await cache.getByPath("test/56"),file0400),0);
+        test.equal(Buffer.compare(await cache.getByPath("test/59"),file0400),0);
+        test.equal(Buffer.compare(await cache.getByPath("test/5"),file0400),0);
+        test.equal(Buffer.compare(await cache.getByPath("test/4"),file0400),0);
+        test.equal(Buffer.compare(await cache.getByPath("b"),file1200),0);
+
+        //try deleting files starting with test/5
+        await cache.deleteByPath("test/59");
+        try {
+            await cache.getByPath("test/59");
+            test.equal("this line should never run",262);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
+        test.equal(Buffer.compare(await cache.getByPath("test/56"),file0400),0);
+
+        //try deleting all files starting with test/5
+        await cache.deleteByPathStart("test/5");
+        test.equal(Buffer.compare(await cache.getByPath("test/4"),file0400),0);
+        try {
+            await cache.getByPath("test/56");
+            test.equal("this line should never run",273);
+        } catch (e) {
+            test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
+        }
 
         //destroy the RAM cache and see if still works from s3 bucket
         cache=false;
@@ -237,7 +291,7 @@ module.exports = {
         //try to access information that does not exist
         try {
             await cache.getByPath("no_file");
-            test.equal("this line should never run",203);
+            test.equal("this line should never run",294);
         } catch (e) {
             test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
         }
@@ -248,7 +302,7 @@ module.exports = {
         await sleep(90000); //3 times the check frequency so should have run
         try {
             await cache.getByPath("a");
-            test.equal("this line should never run",162);
+            test.equal("this line should never run",305);
         } catch (e) {
             test.equal("error was called because path doesn't exist","error was called because path doesn't exist");
         }
